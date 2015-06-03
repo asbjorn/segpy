@@ -1,9 +1,14 @@
+# Data
+data/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 
 # C extensions
 *.so
+
+.hypothesis
 
 # Distribution / packaging
 .Python
@@ -53,7 +58,7 @@ coverage.xml
 *.pot
 
 # Sphinx documentation
-docs/_build/
+docs/build/
 
 # Event stores
 *.events
