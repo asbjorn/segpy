@@ -1,10 +1,14 @@
-
+import hashlib
 import time
 import os
 import sys
 
+from collections.abc import Set
 from itertools import (islice, cycle, tee, chain, repeat)
+
 from segpy.sorted_set import SortedFrozenSet
+
+UNKNOWN_FILENAME = '<unknown>'
 
 NATIVE_ENDIANNESS = '<' if sys.byteorder == 'little' else '>'
 
@@ -256,13 +260,13 @@ def filename_from_handle(fh):
         fh: A file-like object.
 
     Returns:
-        A string containing the file name, or '<unknown>' if it could not
+        A string containing the file name, or UNKNOWN_FILENAME if it could not
         be determined.
     """
     try:
         return fh.name
     except AttributeError:
-        return '<unknown>'
+        return UNKNOWN_FILENAME
 
 
 def now_millis():
@@ -344,6 +348,11 @@ def make_sorted_distinct_sequence(iterable):
         An immutable collection which supports the Sized, Iterable,
         Container and Sequence protocols.
     """
+    if isinstance(iterable, range):
+        if iterable.step > 0:
+            return iterable
+        else:
+            return reversed(iterable)
     sorted_set = SortedFrozenSet(iterable)
     if len(sorted_set) == 1:
         return single_item_range(sorted_set[0])
@@ -353,3 +362,116 @@ def make_sorted_distinct_sequence(iterable):
         stop = sorted_set[-1] + stride
         return range(start, stop, stride)
     return sorted_set
+
+
+def hash_for_file(fh, *args):
+    """Compute the SHA1 hash for file combined with any stringified additional args.
+
+    The resulting hash is based on both the contents and length of the supplied file-
+    like object.
+
+        fh: A file-like object opened in binary mode.
+
+        *args: The stringified values of ny additional arguments with be combined
+            with the file data used to compute the hash.
+
+    Returns:
+        A string containing the hexadecimal digest.
+    """
+    # TODO: Use decorator to reset file pointer
+    block_size=512*128
+    sha1 = hashlib.sha1()
+    fh.seek(0)
+    for chunk in iter(lambda: fh.read(block_size), EMPTY_BYTE_STRING):
+        sha1.update(chunk)
+    length = fh.tell()
+    length_as_bytes = length.to_bytes((length.bit_length() // 8) + 1, byteorder='little')
+    sha1.update(length_as_bytes)
+    fh.seek(0)
+    for arg in args:
+        encoded_arg = repr(arg).encode('utf8')
+        sha1.update(encoded_arg)
+    digest = sha1.hexdigest()
+    return digest
+
+
+def is_range_superset_of_range(superset_range, subset_range):
+    """Are all the elements of
+
+    """
+    if subset_range.start not in superset_range:
+        return False
+    if subset_range.step % superset_range.step != 0:
+        return False
+    if subset_range[-1] > superset_range[-1]:
+        return False
+    assert set(subset_range).issubset(set(superset_range))
+    return True
+
+
+def is_superset(superset, subset):
+    """A more general version of set.issuperset that is smart enough to work with ranges."""
+    if isinstance(subset, range) and isinstance(superset, range):
+        return is_range_superset_of_range(superset, subset)
+    if isinstance(superset, range):
+        return all(item in superset for item in subset)
+    if isinstance(superset, set):
+        return superset.issuperset(subset)
+    if isinstance(subset, set):
+        return subset.issubset(superset)
+    return set(superset).issuperset(subset)
+
+
+def ensure_superset(superset, subset):
+    """Ensure that one collection is a subset of another.
+
+    Args:
+        all_items: A sequence containing all items.
+
+        subset: Subset must either be a collection the elements of which are a subset of
+            all_items, or a slice object, in which case the subset items will be sliced
+            from all_items.
+    Returns:
+        A sorted, distinct collection which is a subset of all_items.
+
+    Raises:
+        ValueError: If the items in subset are not a subset of the items in all_items.
+    """
+    if subset is None:
+        return superset
+    elif isinstance(subset, slice):
+        return superset[subset]
+    else:
+        subset = make_sorted_distinct_sequence(subset)
+        if not is_superset(superset, subset):
+            raise ValueError("subset_or_slice {!r} is not a subset of all_items {!r}"
+                             .format(subset, superset))
+        return subset
+
+def true(*args, **kwargs):
+    return True
+
+
+def collect_attributes(derived_class, base_class=object, predicate=None):
+    """
+
+    Args:
+        derived_class: The class at which to start searching.
+        base_class: The class at which to stop searching
+        predicate: A predicate which accepts
+
+    Returns:
+        A generator of items containing the (class, attribute_name)
+    """
+    # TODO: Consider using the inspect module to do this
+    if predicate is None:
+        predicate = true
+
+    for cls in derived_class.__mro__:
+        for key, value in vars(cls).items():
+            if predicate(key, value):
+                yield cls, key, value
+        if cls is base_class:
+            break
+
+

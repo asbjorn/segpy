@@ -2,8 +2,9 @@ from collections import OrderedDict
 from weakref import WeakKeyDictionary
 from itertools import chain
 
+from segpy import __version__
 from segpy.docstring import docstring_property
-from segpy.util import underscores_to_camelcase, first_sentence, super_class
+from segpy.util import underscores_to_camelcase, first_sentence, super_class, collect_attributes
 
 
 class Header:
@@ -60,6 +61,24 @@ class Header:
             self.__class__.__name__,
             ', '.join("{}={}".format(k, getattr(self, k)) for k in self.ordered_field_names()))
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['__version__'] = __version__
+        state['_all_attributes'] = OrderedDict((name, getattr(self, name)) for name in self._ordered_field_names)
+        return state
+
+    def __setstate__(self, state):
+        if state['__version__'] != __version__:
+            raise TypeError("Cannot unpickle {} version {} into version {}"
+                            .format(self.__class__.__name__,
+                                    state['__version__'],
+                                    __version__))
+        del state['__version__']
+
+        for name, value in state['_all_attributes'].items():
+            setattr(self, name, value)
+        del state['_all_attributes']
+        self.__dict__.update(state)
 
 def are_equal(self, other):
     """Compare two headers for equality.
@@ -77,7 +96,7 @@ class FormatMeta(type):
     """
 
     @classmethod
-    def __prepare__(mcs, name, bases):
+    def __prepare__(mcs, name, bases, *args, **kwargs):
         return OrderedDict()
 
     def __new__(mcs, name, bases, namespace):
@@ -113,6 +132,62 @@ class FormatMeta(type):
                 attr_class.__doc__ = attr.documentation
 
         return super().__new__(mcs, name, bases, namespace)
+
+
+def is_public_non_field_attr(name, attr):
+    return (not name.startswith('_')) and (not isinstance(attr, HeaderFieldDescriptor) and (not isinstance(attr, classmethod)))
+
+
+class SubFormatMeta(FormatMeta):
+    """A metaclass for a format class which has a subset of the fields in an existing format class.
+
+    SubFormat classes can be used to reduce storage requirements and increase performance, since they can be
+    used to generate simpler HeaderPackers.
+
+    SubFormat classes must be declared as:
+
+        class MySubFormat(metaclass=SubFormatMeta,
+                          parent_format=MyFormatClass,
+                          parent_field_names=[
+                             'first_field_name',
+                             'second_field_name']):
+            pass
+    """
+
+    def __new__(mcs, name, bases, namespace, parent_format, parent_field_names):
+        """
+        Args:
+            name: The name of the actual class being created by this metaclass.
+            bases: The base classes of the actual class.
+            parent_format: An existing Format (?Header) on which (sort out terminology here)
+                of which this format has a subset of fields.
+            parent_field_names: An iterable series of field names which this format should
+                duplicate from the parent_format.
+        """
+
+        # Copy the requested fields, by creating a new descriptor based
+        # on information retrieved from the existing descriptor
+        for field_name in parent_field_names:
+            named_field = getattr(parent_format, field_name)
+            assert named_field.name == field_name
+            field_copy = field(named_field.value_type,
+                               named_field.offset,
+                               named_field.default,
+                               named_field.documentation)
+            namespace[field_name] = field_copy
+
+        # Copy other non-field class attributes
+        non_field_attributes = list(collect_attributes(parent_format, Header, is_public_non_field_attr))
+        namespace.update((name, value) for _, name, value in non_field_attributes)
+
+        # Add a reference back to the original format
+        namespace['_parent_format'] = parent_format
+
+        return super().__new__(mcs, name, bases, namespace)
+
+    def __init__(mcs, name, bases, namespace, parent_format, parent_field_names):
+        # Absorb the additional arguments
+        super().__init__(name, bases, namespace)
 
 
 class NamedField:

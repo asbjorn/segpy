@@ -41,14 +41,14 @@ setup(
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://github.com/rob-smallshire/segpy',
+    url='https://github.com/sixty-north/segpy',
 
     # Author details
-    author='Robert Smallshire',
-    author_email='robert@smallshire.org.uk',
+    author='Sixty North AS',
+    author_email='rob@sixty-north.com',
 
     # Choose your license
-    license='GPL',
+    license='GNU Affero General Public License v3',
 
     # See https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
@@ -64,11 +64,11 @@ setup(
         'Topic :: Software Development :: Libraries',
 
         # Pick your license as you wish (should match "license" above)
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: GNU Affero General Public License v3',
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
-        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
     ],

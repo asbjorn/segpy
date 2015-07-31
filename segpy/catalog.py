@@ -322,7 +322,7 @@ class DictionaryCatalog2D(Catalog2D):
 
     def __repr__(self):
         return '{}(i_range={}, j_range={}, items={})'.format(
-            self.j_range, self.j_range,
+            self.i_range, self.j_range,
             self.__class__.__name__, reprlib.repr(self._items.items()))
 
 
@@ -511,7 +511,8 @@ class LinearRegularCatalog(Mapping):
             key_max: The maximum key.
             key_stride: The difference between successive keys.
             value_start: The value corresponding to the minimum key.
-            value_max: The value corresponding to the maximum key.
+            value_stop: The value corresponding to the maximum key.
+            value_stride:
 
         Raises:
             ValueError: There is any inconsistency in the keys, strides,
@@ -574,7 +575,7 @@ class LinearRegularCatalog(Mapping):
         return iter(range(self._key_min, self._key_max + 1, self._key_stride))
 
     def __repr__(self):
-        return '{}(key_min={}, key_max{}, key_stride={}, value_start={}, value_stop={}, value_stride={})'.format(
+        return '{}(key_min={}, key_max={}, key_stride={}, value_start={}, value_stop={}, value_stride={})'.format(
             self.__class__.__name__,
             self._key_min,
             self._key_max,
